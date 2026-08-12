@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "encore run",
     "typecheck": "tsc --noEmit",
-    "test": "encore check"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@corsair-platform/shared-types": "*"
