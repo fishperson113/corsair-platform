@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.next/
+coverage/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts
+artifacts/
+applications/
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/

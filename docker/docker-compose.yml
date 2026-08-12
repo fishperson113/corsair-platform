@@ -1,0 +1,26 @@
+services:
+  corsair-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: corsair
+      POSTGRES_PASSWORD: corsair
+      POSTGRES_DB: corsair
+    ports:
+      - "5432:5432"
+    volumes:
+      - corsair_pg:/var/lib/postgresql/data
+
+  job-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jobs
+      POSTGRES_PASSWORD: jobs
+      POSTGRES_DB: job_application
+    ports:
+      - "5433:5432"
+    volumes:
+      - job_pg:/var/lib/postgresql/data
+
+volumes:
+  corsair_pg:
+  job_pg:
