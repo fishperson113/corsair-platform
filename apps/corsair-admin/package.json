@@ -4,18 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/main.ts",
-    "build": "tsc",
-    "start": "node dist/main.js",
+    "dev": "encore run",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "encore check"
   },
   "dependencies": {
-    "@corsair-platform/shared-types": "*",
-    "@hono/node-server": "^1.19.0",
-    "hono": "^4.6.0",
-    "zod": "^3.25.0",
-    "pino": "^9.0.0"
-  },
-  "devDependencies": {}
+    "@corsair-platform/shared-types": "*"
+  }
 }

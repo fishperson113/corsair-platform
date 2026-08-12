@@ -1,17 +1,19 @@
-# Corsair Platform
+# Corsair Platform / Encore Service
 
-Minimal SSR admin/API for the Corsair integration control plane.
+Corsair is implemented as an Encore.ts application. The `corsair` service exposes the minimal SSR control plane and typed JSON endpoints.
 
-Run locally after installing dependencies:
+Run locally:
 
 ```bash
-npm run dev:admin
+encore run
 ```
 
-Health endpoint:
+Endpoints:
 
-```text
-GET /health
-```
+- `GET /` — vanilla SSR dashboard
+- `GET /health` — health probe
+- `GET /integrations` — integrations page
+- `GET /api/integrations` — typed integrations API
+- `GET /connections`, `/clients`, `/audit`
 
-This first hosted slice intentionally does not configure credentials or MCP. Configure those after deployment through the platform, as requested.
+The first hosted slice intentionally does not configure credentials or MCP. Configure those after deployment through Encore secrets/platform, as requested.
