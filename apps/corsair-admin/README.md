@@ -1,14 +1,17 @@
-# Corsair Platform / Admin
+# Corsair Platform
 
-This app is the control-plane/admin boundary for Corsair.
+Minimal SSR admin/API for the Corsair integration control plane.
 
-Owns:
-- integration registry
-- tenants, accounts, connections, encrypted credentials
-- agent clients and permissions
-- audit events
-- Corsair runtime/API boundary
+Run locally after installing dependencies:
 
-Must not contain job, candidate, CV, cover-letter, or application workflow logic.
+```bash
+npm run dev:admin
+```
 
-Implementation status: scaffold only. Corsair primitives should be wrapped/composed rather than reimplemented.
+Health endpoint:
+
+```text
+GET /health
+```
+
+This first hosted slice intentionally does not configure credentials or MCP. Configure those after deployment through the platform, as requested.

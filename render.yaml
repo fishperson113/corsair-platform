@@ -1,0 +1,15 @@
+services:
+  corsair-admin:
+    type: web
+    name: corsair-platform
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install && npm run build --workspace @corsair-platform/admin
+    startCommand: npm run start --workspace @corsair-platform/admin
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ALLOWED_ORIGIN
+        value: '*'
