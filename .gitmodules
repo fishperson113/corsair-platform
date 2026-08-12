@@ -1,0 +1,3 @@
+[submodule "clients/job-application"]
+	path = clients/job-application
+	url = C:/workspace/job-application-assistant
