@@ -1,0 +1,289 @@
+# Claude Handoff — Corsair Platform
+
+Updated after commit `e4ab318`.
+
+## Mission
+
+Continue building Corsair as the integration/control plane for personal agent workloads.
+
+Corsair owns:
+
+- provider/integration registry;
+- connection lifecycle;
+- encrypted provider credentials;
+- provider adapters and runtime API calls;
+- agent clients/API keys;
+- permissions/capabilities;
+- audit events.
+
+The Job Application Assistant is a separate repository and is included only as the Git submodule:
+
+```text
+clients/job-application
+```
+
+Do not move Job Application domain logic into Corsair.
+
+## Current repository state
+
+- Repository: `C:\workspace\corsair-platform`
+- Branch: `main`
+- GitHub remote: `origin`
+- Encore Cloud app: `corsair-platform-e542`
+- Staging URL: `https://staging-corsair-platform-e542.encr.app`
+- Deployment rule: push GitHub `main`; do not use `git push encore`.
+- Last feature commit: `e4ab318 feat: add multi-bot Telegram connections`
+- Previous connection/auth commit: `790082e feat: add self-service Google connections`
+
+The worktree was clean before this handoff file was created.
+
+## Implemented and verified
+
+### Encore service and persistence
+
+- Encore service: `apps/corsair-admin/encore.service.ts`, service name `corsair`.
+- SQL database: `apps/corsair-admin/database.ts`.
+- Migrations:
+  - `migrations/001_create_control_plane.up.sql`
+  - `migrations/002_add_telegram_bots.up.sql`
+- `encore check` has passed locally and applied both migrations in the local Encore database.
+
+Current tables:
+
+```text
+oauth_states
+admin_sessions
+connections
+audit_events
+telegram_bots
+```
+
+### Single-user admin access
+
+Google OAuth is used only for Corsair admin UI access. The allowlisted admin email is:
+
+```text
+phamduong1132005@gmail.com
+```
+
+Routes:
+
+```text
+/login
+/auth/google/login/start
+/auth/google/login/callback
+/auth/logout
+```
+
+Sessions are stored server-side in `admin_sessions`. The browser receives an HttpOnly cookie. Local HTTP does not set `Secure`; HTTPS production does.
+
+### Google Workspace connection
+
+UI routes:
+
+```text
+/integrations
+/connections
+```
+
+Features:
+
+- Connect Google Workspace from the UI.
+- Reconnect.
+- Disconnect.
+- Single-use OAuth state with ten-minute expiry.
+- Google access/refresh token payload encrypted with AES-256-GCM before persistence.
+- Raw tokens are never returned to the UI.
+
+Connection ID currently used by the personal workload:
+
+```text
+google-personal
+```
+
+### Telegram ownership model
+
+Corsair does NOT log into the Telegram personal account. There is no OTP, MTProto session, or Telegram logout flow.
+
+The personal Telegram profile is owner metadata:
+
+```text
+username: FishPerson123
+telegram user id: 5083029113
+first name: Dương
+last name: Phạm
+language: en
+```
+
+Telegram bots are independent Bot API connections. Each bot has its own encrypted BotFather token.
+
+UI route:
+
+```text
+/telegram
+```
+
+Features:
+
+- Add multiple bots.
+- Verify a token by calling Telegram `getMe`.
+- Encrypt and persist the token server-side.
+- Display bot username and status without displaying token.
+- Test a stored bot token.
+- Disconnect a bot.
+
+Telegram implementation:
+
+```text
+apps/corsair-admin/telegram.ts
+apps/corsair-admin/migrations/002_add_telegram_bots.up.sql
+```
+
+### SDK boundary
+
+`packages/corsair-client/src/index.ts` is no longer an empty placeholder.
+
+It currently exposes:
+
+```ts
+CorsairClient.health()
+CorsairClient.listConnections()
+```
+
+The client models safe connection summaries only. It must never model Google refresh tokens, Telegram bot tokens, OAuth client secrets, or other raw provider credentials.
+
+### Cloud smoke evidence
+
+The following staging probes have passed:
+
+```text
+GET /health                         -> 200
+GET /login                          -> 200
+GET /integrations without session  -> 302 /login
+GET /connections without session   -> 302 /login
+GET /telegram without session      -> 302 /login
+GET /api/connections without key   -> 401 unauthorized
+```
+
+OAuth start on staging returned a Google URL containing the configured client ID and the correct staging callback URL. The user manually connected Google and added a Telegram bot through the staging UI.
+
+A browser/curl session owned by Claude cannot inspect the user's HttpOnly session cookie. Do not interpret a redirect to `/login` in a separate browser context as proof that the user's connection disappeared.
+
+## Encore secrets
+
+Sensitive/runtime configuration must use Encore `secret()`, not production `.env` files.
+
+Required secret names:
+
+```text
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+CORSAIR_ADMIN_EMAIL
+CORSAIR_PUBLIC_URL
+CORSAIR_KEK_BASE64
+CORSAIR_API_KEY
+```
+
+Expected staging values include:
+
+```text
+CORSAIR_ADMIN_EMAIL=phamduong1132005@gmail.com
+CORSAIR_PUBLIC_URL=https://staging-corsair-platform-e542.encr.app
+```
+
+Google redirect URIs:
+
+```text
+https://staging-corsair-platform-e542.encr.app/auth/google/login/callback
+https://staging-corsair-platform-e542.encr.app/auth/google/workspace/callback
+```
+
+`CORSAIR_KEK_BASE64` must remain stable after credentials are stored. Do not regenerate it casually. Never print or commit secret values.
+
+`CORSAIR_API_KEY` is the workload-to-Corsair Bearer key. It is not a Google key and must be configured in the consuming workload separately.
+
+## Important incomplete areas
+
+Corsair is NOT a finished integration platform. It is currently a working personal connection-control-plane MVP.
+
+Unclosed gates:
+
+1. `packages/corsair-client` has only health/list-connections operations. It does not yet expose Drive, Sheets, Telegram send/receive, or generic provider operations.
+2. Telegram webhook registration, webhook ingress, update persistence, outbound send helpers, retries, and idempotency are not implemented.
+3. Google token refresh/runtime provider adapters are not implemented beyond storing the OAuth token payload.
+4. Agent client creation, revocation, scoped permissions, and capability enforcement are not implemented.
+5. `/api/clients` and `/api/audit` are still placeholder endpoints.
+6. Audit rows are written for current login/connection actions, but there is no complete audit query UI/API.
+7. Form routes need production hardening: CSRF protection, rate limiting, better error handling, and explicit authorization middleware.
+8. The current SSR/API implementation is concentrated in `apps/corsair-admin/api.ts`; split bounded contexts before adding many providers.
+9. There are no real unit test files yet. `npm test` passes with `--passWithNoTests`, so that is not meaningful behavioral coverage.
+10. The client API-key path and connection-scoped provider execution contract need to be designed before wiring Job Application runtime calls.
+
+Do not claim Corsair is complete until these gates are addressed or explicitly accepted as out of scope.
+
+## Recommended next implementation order
+
+### P1 — Stabilize security and boundaries
+
+- Extract auth/session, connection, credential, audit, and provider modules from `api.ts`.
+- Add explicit admin authorization middleware to every management route.
+- Add CSRF protection for POST form routes.
+- Add rate limiting for login/OAuth start and bot-token verification.
+- Add focused tests for encryption round-trip, OAuth state expiry/replay, admin allowlist, and unauthorized routes.
+
+### P2 — Finish Telegram Bot API runtime
+
+- Store webhook configuration per bot.
+- Add `setWebhook`, `deleteWebhook`, and `getWebhookInfo` helpers.
+- Add inbound update endpoint with Telegram secret-token verification.
+- Persist update ID/idempotency state.
+- Add safe outbound `sendMessage` operation through `connectionId`.
+- Add retry/backoff and audit event for external side effects.
+
+### P3 — Finish Google runtime adapters
+
+- Implement refresh-token exchange server-side.
+- Add typed Drive and Sheets operations selected by `connectionId`.
+- Route all external calls through provider adapters.
+- Add connection health checks and `needs_reauth` transitions.
+
+### P4 — Finish Corsair client and workload seam
+
+- Define typed provider-neutral operation request/response contracts.
+- Add connection-scoped client methods.
+- Update Job Application to call Corsair only through the published/versioned client boundary.
+- Never add provider tokens or direct Telegram/Google SDK plumbing to Job Application.
+
+### P5 — Agent clients, permissions, audit
+
+- Create/revoke agent clients.
+- Hash API keys; show raw key only once at creation.
+- Enforce integration/resource/action capabilities at the runtime boundary.
+- Add queryable audit log with actor, connection, operation, result, and external request metadata.
+
+## Verification commands
+
+This is a TypeScript/npm/Encore repository, not a Python/uv repository.
+
+Run without dependency mutation:
+
+```bash
+npm run typecheck
+npm test
+encore check
+git diff --check
+```
+
+`npm test` currently reports no test files; report that honestly.
+
+For deployment, commit and push GitHub `main`. Do not push the managed `encore` remote.
+
+## Safety rules for Claude
+
+- Do not print, ask the user to paste, or commit Google client secrets, refresh tokens, Telegram bot tokens, KEK values, or API keys.
+- Do not regenerate `CORSAIR_KEK_BASE64` when existing connections may depend on it.
+- Do not add Telegram personal-account login unless the user explicitly changes the architecture.
+- Do not couple Job Application domain types into Corsair.
+- Do not silently add provider tokens to the SDK or browser responses.
+- Do not report the platform as complete based only on `encore check`; distinguish implemented, verified, and unclosed gates.
+- Preserve the GitHub-linked Encore deployment workflow.
