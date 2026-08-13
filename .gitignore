@@ -17,6 +17,9 @@ artifacts/
 applications/
 *.log
 
+# Build artifacts
+*.tsbuildinfo
+
 # OS/editor
 .DS_Store
 Thumbs.db
