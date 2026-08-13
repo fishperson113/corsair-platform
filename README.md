@@ -51,4 +51,15 @@ https://<corsair-public-host>/auth/google/workspace/callback
 
 For local development, use `CORSAIR_PUBLIC_URL=http://127.0.0.1:4000` and register the two localhost callback URLs in the Google OAuth client.
 
+Telegram ownership is intentionally not a Telegram account login. Corsair stores the personal owner profile as metadata and manages multiple Telegram Bot API connections:
+
+```text
+Owner: @FishPerson123 (telegram user id 5083029113)
+  ├── Bot A — encrypted BotFather token
+  ├── Bot B — encrypted BotFather token
+  └── Bot C — encrypted BotFather token
+```
+
+Use `/telegram` after signing in to add, test, reconnect, or disconnect bots. Corsair verifies each token with Telegram `getMe`, encrypts it server-side, and never returns it to the UI.
+
 The app is registered in Encore Cloud as `corsair-platform-e542` and is linked to GitHub. Push changes to GitHub `main`; do not use the legacy managed Encore remote.
