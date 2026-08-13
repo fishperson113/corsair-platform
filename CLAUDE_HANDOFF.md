@@ -90,8 +90,9 @@ Google Workspace is connected through browser OAuth. The owner approves access i
 - Encore Cloud app: `corsair-platform-e542`
 - Staging URL: `https://staging-corsair-platform-e542.encr.app`
 - Deployment rule: push GitHub `main`; do not use `git push encore`.
-- Last feature commit: `e4ab318 feat: add multi-bot Telegram connections`
-- Previous connection/auth commit: `790082e feat: add self-service Google connections`
+- Last feature commit: `fc84a49 feat: add provider runtime seam for workloads`
+- Security hardening commit: `8914781 feat: harden admin control plane security`
+- Multi-bot Telegram commit: `e4ab318 feat: add multi-bot Telegram connections`
 
 The worktree was clean before this handoff file was created.
 
@@ -206,9 +207,39 @@ It currently exposes:
 ```ts
 CorsairClient.health()
 CorsairClient.listConnections()
+CorsairClient.sendTelegramMessage({ connectionId, chatId, text, ... })
+CorsairClient.getTelegramUpdates({ connectionId, offset?, limit?, timeout? })
+CorsairClient.uploadDriveFile({ connectionId, name, mimeType, contentBase64, parents? })
+CorsairClient.appendSheetRows({ connectionId, spreadsheetId, range, values })
+CorsairClient.getSheetValues({ connectionId, spreadsheetId, range })
 ```
 
-The client models safe connection summaries only. It must never model Google refresh tokens, Telegram bot tokens, OAuth client secrets, or other raw provider credentials.
+The client models safe connection summaries and provider operations addressed only by `connectionId`. It must never model Google refresh tokens, Telegram bot tokens, OAuth client secrets, or other raw provider credentials.
+
+### Workload provider API (runtime seam)
+
+Bearer-authed (`CORSAIR_API_KEY`) endpoints that make provider calls on a workload's behalf. All live and verified on staging (401 without/with wrong key):
+
+```text
+POST /api/telegram/send            -> Bot API sendMessage
+POST /api/telegram/updates         -> Bot API getUpdates (no webhook, no MTProto)
+POST /api/google/drive/upload      -> Drive multipart upload
+POST /api/google/sheets/append     -> Sheets values append
+POST /api/google/sheets/get        -> Sheets values get
+```
+
+Implementation:
+
+```text
+apps/corsair-admin/workload-api.ts        (Bearer-authed endpoints)
+apps/corsair-admin/telegram.ts            (sendTelegramMessage, getTelegramUpdates)
+apps/corsair-admin/google-runtime.ts      (accessTokenFor, driveUpload, sheetsAppend, sheetsGet)
+apps/corsair-admin/google.ts              (refreshAccessToken)
+apps/corsair-admin/provider-encoding.ts   (pure buildDriveMultipart)
+apps/corsair-admin/security.ts            (pure crypto/compare/allowlist/headers)
+```
+
+Google access tokens are refreshed server-side per call from the stored refresh token; a failed refresh flips the connection to `needs_reauth`. Telegram inbound uses `getUpdates` polling (caller manages the offset), chosen over webhooks for single-user simplicity.
 
 ### Cloud smoke evidence
 
@@ -264,20 +295,24 @@ https://staging-corsair-platform-e542.encr.app/auth/google/workspace/callback
 
 Corsair is NOT a finished integration platform. It is currently a working personal connection-control-plane MVP.
 
+Closed since last handoff:
+
+- P1 security pass: constant-time API-key compare, AES-256-GCM extracted to a pure testable core, hardening headers (CSP `form-action 'self'` + `frame-ancestors 'none'`, X-Frame-Options DENY, nosniff, no-referrer) on every response. Single-user posture: SameSite=Lax + CSP is the CSRF stance; no CSRF token store, no rate limiter (login is Google OAuth restricted to one allowlisted email).
+- SDK now exposes Telegram send/updates and Google Drive/Sheets operations (gate 1).
+- Telegram outbound sendMessage + inbound getUpdates implemented (gate 2, via polling not webhook).
+- Google refresh-token exchange + Drive/Sheets runtime adapters implemented (gate 3).
+- Focused unit tests exist: encryption round-trip/tamper, constant-time compare, admin allowlist, Drive multipart encoding, SDK request shaping (18 tests, real `vitest run`).
+
 Unclosed gates:
 
-1. `packages/corsair-client` has only health/list-connections operations. It does not yet expose Drive, Sheets, Telegram send/receive, or generic provider operations.
-2. Telegram webhook registration, webhook ingress, update persistence, outbound send helpers, retries, and idempotency are not implemented.
-3. Google token refresh/runtime provider adapters are not implemented beyond storing the OAuth token payload.
-4. Agent client creation, revocation, scoped permissions, and capability enforcement are not implemented.
-5. `/api/clients` and `/api/audit` are still placeholder endpoints.
-6. Audit rows are written for current login/connection actions, but there is no complete audit query UI/API.
-7. Form routes need production hardening: CSRF protection, rate limiting, better error handling, and explicit authorization middleware.
-8. The current SSR/API implementation is concentrated in `apps/corsair-admin/api.ts`; split bounded contexts before adding many providers.
-9. There are no real unit test files yet. `npm test` passes with `--passWithNoTests`, so that is not meaningful behavioral coverage.
-10. The client API-key path and connection-scoped provider execution contract need to be designed before wiring Job Application runtime calls.
+1. Telegram lacks webhook ingress, update persistence, retries/backoff, and idempotency. `getUpdates` polling is intentional for single-user; revisit if a bot needs push delivery or multiple consumers.
+2. Google access tokens are refreshed per call (no caching) and there is no periodic connection health check beyond the on-call `needs_reauth` transition.
+3. Provider endpoints have no per-operation rate limiting or request-size caps (single-user, accepted for now).
+4. Agent client creation, revocation, scoped permissions, and capability enforcement are not implemented. Today any holder of `CORSAIR_API_KEY` can call every connection.
+5. `/api/clients` and `/api/audit` are still placeholder endpoints; audit rows are written (including for provider calls now) but there is no query UI/API.
+6. `api.ts` still holds the admin SSR surface; the provider/security/runtime concerns are now split into their own modules, but auth/session/connection contexts could be split further before adding many more providers.
 
-Do not claim Corsair is complete until these gates are addressed or explicitly accepted as out of scope.
+Do not claim Corsair is complete until these gates are addressed or explicitly accepted as out of scope. The provider runtime seam (gate 10 in the previous handoff) is now built, so the platform is ready for the Job Application client to consume Corsair only through the SDK.
 
 ## Recommended next implementation order
 
