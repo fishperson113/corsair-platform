@@ -1,6 +1,6 @@
 # Claude Handoff — Corsair Platform
 
-Updated after commit `e4ab318`.
+Updated after the Telegram MVP and product-intent handoff.
 
 ## Mission
 
@@ -24,7 +24,65 @@ clients/job-application
 
 Do not move Job Application domain logic into Corsair.
 
-## Current repository state
+## User story and product intent
+
+This is a personal-first platform, not a generic SaaS product at the current stage.
+
+The owner wants to operate one personal agent system from Telegram while keeping provider credentials behind Corsair:
+
+```text
+Owner's Telegram profile: @FishPerson123
+        ↓
+Job Application Assistant / other personal workloads
+        ↓
+Corsair connectionId-based client
+        ↓
+Google Workspace, Telegram bots, and future providers
+```
+
+### Primary user story
+
+As the owner, I want to open the Corsair web dashboard, connect or reconnect my Google Workspace account and manage multiple Telegram bots from the UI, so that I never need to paste provider credentials into source code, edit production `.env`, or redeploy just to change an account or bot.
+
+### Job Application Assistant story
+
+As the owner, I want to send a job-description URL through one of my Telegram bots, then have the separate Job Application Assistant:
+
+1. receive and normalize the job description;
+2. create or detect a duplicate JobApplication;
+3. analyze responsibilities, requirements, seniority, keywords, and hiring signals;
+4. load the canonical candidate profile and evidence;
+5. produce a grounded candidate-to-job match report;
+6. select a CV strategy and generate a tailored CV;
+7. generate a cover letter;
+8. validate claims and outputs against candidate evidence;
+9. render/compile the CV and cover letter to PDF;
+10. store artifacts in Google Drive through Corsair;
+11. update the job tracker/projection in Google Sheets through Corsair;
+12. notify the owner through Telegram.
+
+The workload owns job applications, candidate data, analysis, documents, workflow state, and Telegram user experience. Corsair owns the external integration credentials and provider calls.
+
+### Telegram intent
+
+The owner has one primary Telegram profile, but may operate many bots. The primary profile is owner metadata only; Corsair must not log into the personal Telegram account and must not create an MTProto session unless the owner explicitly changes this decision.
+
+Bots are added individually through the Corsair UI using BotFather tokens. A bot token is a provider credential: it is encrypted server-side, never returned to the browser, and accessed by workloads only through a scoped `connectionId`.
+
+### Google intent
+
+Google Workspace is connected through browser OAuth. The owner approves access in Google's consent screen; Corsair stores the encrypted refresh credential and handles future refresh/runtime calls. The Job Application Assistant receives only a connection ID such as `google-personal`, never Google tokens or client secrets.
+
+### Product principles
+
+- Personal-first and simple before multi-tenant generalization.
+- UI-managed connections; no manual credential editing or redeploy for normal reconnects.
+- Separate platform/control plane from workload/business domain.
+- Human-owned provider connections and explicit capability boundaries.
+- No raw provider credentials in browser responses, SDK types, Job Application source, or LLM prompts.
+- Provider-independent workload contracts; Google/Telegram SDK details stay inside Corsair adapters.
+- Keep the workload repository independent and releaseable; use the platform repository submodule only for coordinated local development.
+
 
 - Repository: `C:\workspace\corsair-platform`
 - Branch: `main`
