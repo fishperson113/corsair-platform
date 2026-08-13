@@ -4,6 +4,11 @@ import { audit as writeAudit, apiAuthorized, callbackUrl, clearCookieHeader, con
 import { db } from "./database.js";
 import { exchangeCode, googleAuthorizationUrl, googleProfile } from "./google.js";
 import { addTelegramBot, disconnectTelegramBot, telegramOwner, testTelegramBot } from "./telegram.js";
+import { isAdminEmail, SECURITY_HEADERS } from "./security.js";
+
+function harden(res: ServerResponse): void {
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
+}
 
 const styles = `
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#0b1020;color:#e8ecf7}*{box-sizing:border-box}body{margin:0;min-width:320px}a{color:inherit;text-decoration:none}.shell{display:grid;grid-template-columns:230px 1fr;min-height:100vh}.sidebar{border-right:1px solid #202a43;padding:24px 16px;background:#0d1428}.brand{font-weight:800;letter-spacing:.08em;margin:0 8px 32px}.nav a{display:block;padding:10px 12px;border-radius:8px;color:#aab5cf;margin:4px 0}.nav a:hover,.nav a.active{background:#182442;color:#fff}.main{padding:32px;max-width:1280px;width:100%}.header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}h1{margin:0;font-size:28px}h2{font-size:18px;margin:0 0 16px}.muted{color:#93a0bd}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:24px}.card{background:#111a30;border:1px solid #202a43;border-radius:12px;padding:18px}.metric{font-size:30px;font-weight:800;margin-top:8px}.table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:13px 10px;border-bottom:1px solid #202a43}th{color:#93a0bd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.badge{display:inline-block;padding:4px 9px;border-radius:99px;font-size:12px;background:#173d31;color:#81e6bb}.badge.warn{background:#453514;color:#ffd479}@media(max-width:800px){.shell{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid #202a43}.nav{display:flex;overflow:auto}.main{padding:20px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -19,12 +24,14 @@ function page(title: string, body: string, active = "dashboard"): string {
 }
 
 function sendHtml(res: ServerResponse, html: string, status = 200): void {
+  harden(res);
   res.statusCode = status;
   res.setHeader("content-type", "text/html; charset=utf-8");
   res.end(html);
 }
 
 function sendJson(res: ServerResponse, value: unknown): void {
+  harden(res);
   res.statusCode = 200;
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.end(JSON.stringify(value));
@@ -47,6 +54,7 @@ export const integrations = api(
 
 export const connections = api.raw({ method: "GET", path: "/api/connections", expose: true }, async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
   if (!apiAuthorized(req.headers.authorization)) {
+    harden(res);
     res.statusCode = 401;
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ error: "unauthorized" }));
@@ -136,6 +144,7 @@ export const disconnectGoogle = api.raw({ method: "POST", path: "/connections/go
 });
 
 function redirect(res: ServerResponse, location: string, headers: Record<string, string> = {}): void {
+  harden(res);
   res.statusCode = 302;
   res.setHeader("location", location);
   for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
@@ -178,7 +187,7 @@ export const googleLoginCallback = api.raw({ method: "GET", path: "/auth/google/
     if (!redirectUri) return oauthError(res, "OAuth state expired or was already used");
     const tokens = await exchangeCode(code, redirectUri);
     const profile = await googleProfile(tokens.access_token);
-    if (profile.email.toLowerCase() !== configuredAdminEmail().toLowerCase()) return oauthError(res, "This Google account is not the Corsair admin account");
+    if (!isAdminEmail(profile.email, configuredAdminEmail())) return oauthError(res, "This Google account is not the Corsair admin account");
     const session = await createSession(profile.email);
     await writeAudit("admin.login", profile.email, null, { provider: "google" });
     redirect(res, "/", { "set-cookie": cookieHeader(session) });

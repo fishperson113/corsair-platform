@@ -1,6 +1,7 @@
-import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { secret } from "encore.dev/config";
 import { db } from "./database.js";
+import { constantTimeEqual, decryptGcm, encryptGcm, type SealedPayload } from "./security.js";
 
 const googleClientId = secret<"GOOGLE_CLIENT_ID">("GOOGLE_CLIENT_ID");
 const googleClientSecret = secret<"GOOGLE_CLIENT_SECRET">("GOOGLE_CLIENT_SECRET");
@@ -23,7 +24,8 @@ export function configuredAdminEmail(): string {
 
 export function apiAuthorized(header: string | undefined): boolean {
   const value = header?.replace(/^Bearer\s+/i, "").trim();
-  return Boolean(value && apiKey() && value === apiKey());
+  const key = apiKey();
+  return Boolean(value && key && constantTimeEqual(value, key));
 }
 
 export function googleClientConfig(): { clientId: string; clientSecret: string } {
@@ -45,24 +47,12 @@ function kek(): Buffer {
   return decoded;
 }
 
-export function encrypt(value: string): { ciphertext: string; iv: string; tag: string } {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", kek(), iv);
-  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  return {
-    ciphertext: ciphertext.toString("base64url"),
-    iv: iv.toString("base64url"),
-    tag: cipher.getAuthTag().toString("base64url"),
-  };
+export function encrypt(value: string): SealedPayload {
+  return encryptGcm(kek(), value);
 }
 
-export function decrypt(value: { ciphertext: string; iv: string; tag: string }): string {
-  const decipher = createDecipheriv("aes-256-gcm", kek(), Buffer.from(value.iv, "base64url"));
-  decipher.setAuthTag(Buffer.from(value.tag, "base64url"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(value.ciphertext, "base64url")),
-    decipher.final(),
-  ]).toString("utf8");
+export function decrypt(value: SealedPayload): string {
+  return decryptGcm(kek(), value);
 }
 
 export async function createOAuthState(purpose: string, redirectUri: string): Promise<string> {
