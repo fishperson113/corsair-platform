@@ -32,7 +32,9 @@ The Job Application Assistant is now an **Encore.ts** app (service `jobs`) with 
 - Pipeline (`analyzeJobDescription` / `matchCandidate` / `buildCv`) is stubbed behind typed interfaces — replace with Claude-backed implementations without touching the orchestrator.
 - Delivery uploads the (placeholder) CV to Drive, appends a tracker row to Sheets, and notifies via Telegram — all through a thin Corsair adapter (`corsair.ts`), addressed only by `connectionId`.
 
-The client repo is not yet linked to its own Encore Cloud app (`encore.app` id is empty); run `encore app create job-application-assistant` there to get free hosting. Required secrets: `CORSAIR_URL`, `CORSAIR_API_KEY`, `TELEGRAM_CONNECTION_ID`, `GOOGLE_CONNECTION_ID`, `TRACKER_SPREADSHEET_ID`, `OWNER_CHAT_ID`.
+The client is deployed on its own Encore Cloud app `job-application-assistant-n4bi` (staging `https://staging-job-application-assistant-n4bi.encr.app`), triggered by GitHub push to `github.com/fishperson113/job-application-assistant` (not `git push encore`). All six secrets are set: `CORSAIR_URL`, `CORSAIR_API_KEY`, `TELEGRAM_CONNECTION_ID` (`telegram-bot-7904126940`), `GOOGLE_CONNECTION_ID` (`google-personal`), `TRACKER_SPREADSHEET_ID`, `OWNER_CHAT_ID`. Verified live: `/health` 200, `/applications` 200, and `POST /ingest/poll` returned `{polled:1,created:0}` — proving the client authenticates to Corsair and reaches Telegram via connectionId.
+
+Note: the deployed `poll-telegram` cron runs hourly (`2 * * * *`), not every minute as coded — Encore Cloud capped the frequency. Use `POST /ingest/poll` to process messages instantly during testing.
 
 ## User story and product intent
 
