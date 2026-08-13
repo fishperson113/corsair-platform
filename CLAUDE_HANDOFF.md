@@ -24,6 +24,16 @@ clients/job-application
 
 Do not move Job Application domain logic into Corsair.
 
+### Client status (separate repo)
+
+The Job Application Assistant is now an **Encore.ts** app (service `jobs`) with an end-to-end walking skeleton at commit `5ee0a3e`:
+
+- Cron polls Corsair `getUpdates`, extracts a URL, creates a `JobApplication`, acks the sender; updates de-duped by `update_id`, offset persisted.
+- Pipeline (`analyzeJobDescription` / `matchCandidate` / `buildCv`) is stubbed behind typed interfaces — replace with Claude-backed implementations without touching the orchestrator.
+- Delivery uploads the (placeholder) CV to Drive, appends a tracker row to Sheets, and notifies via Telegram — all through a thin Corsair adapter (`corsair.ts`), addressed only by `connectionId`.
+
+The client repo is not yet linked to its own Encore Cloud app (`encore.app` id is empty); run `encore app create job-application-assistant` there to get free hosting. Required secrets: `CORSAIR_URL`, `CORSAIR_API_KEY`, `TELEGRAM_CONNECTION_ID`, `GOOGLE_CONNECTION_ID`, `TRACKER_SPREADSHEET_ID`, `OWNER_CHAT_ID`.
+
 ## User story and product intent
 
 This is a personal-first platform, not a generic SaaS product at the current stage.
