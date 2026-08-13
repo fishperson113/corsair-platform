@@ -22,13 +22,33 @@ encore run
 
 The local API is available at `http://127.0.0.1:4000` and the Encore development dashboard is available on the URL printed by the CLI.
 
-## Deployment
+The first implemented control-plane slice now supports personal Google access without redeployment:
 
-The app is registered in Encore Cloud as `corsair-platform-e542`. The managed Encore Git remote is:
+- `/login` — Google sign-in restricted to `CORSAIR_ADMIN_EMAIL`.
+- `/integrations` — Connect/Reconnect Google Workspace from the UI.
+- `/connections` — view account/status and Disconnect without exposing tokens.
+- OAuth state is single-use and expires after ten minutes.
+- Workspace credentials are encrypted with AES-256-GCM using `CORSAIR_KEK_BASE64` before persistence.
+- `@corsair-platform/client` exposes only safe connection summaries and health checks; it never models provider tokens.
 
-```bash
-git remote add encore encore://corsair-platform-e542
-git push encore
+Required Encore secrets:
+
+```text
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+CORSAIR_ADMIN_EMAIL=phamduong1132005@gmail.com
+CORSAIR_PUBLIC_URL=https://<corsair-public-host>
+CORSAIR_KEK_BASE64=<base64 of a 32-byte key>
+CORSAIR_API_KEY=<long random key for workload SDK calls>
 ```
 
-GitHub remains the source repository for open-source development. The Job Application Assistant remains an independent repository and submodule.
+Google OAuth redirect URIs must include:
+
+```text
+https://<corsair-public-host>/auth/google/login/callback
+https://<corsair-public-host>/auth/google/workspace/callback
+```
+
+For local development, use `CORSAIR_PUBLIC_URL=http://127.0.0.1:4000` and register the two localhost callback URLs in the Google OAuth client.
+
+The app is registered in Encore Cloud as `corsair-platform-e542` and is linked to GitHub. Push changes to GitHub `main`; do not use the legacy managed Encore remote.
